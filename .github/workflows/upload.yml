@@ -44,34 +44,29 @@ jobs:
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
         run: |
           echo "🚀 Connecting to EC2..."
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ec2-key.pem $EC2_USER@$EC2_HOST << 'EOF'
-            set -e  # Dừng nếu có lỗi
+          ssh -tt -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ec2-key.pem $EC2_USER@$EC2_HOST << 'EOF'
+            set -e
             echo "✅ Connected to EC2 instance."
 
-            # Xuất biến môi trường AWS để dùng trong script
             export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
             export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
             export AWS_REGION=${AWS_REGION}
             export S3_BUCKET=${S3_BUCKET}
 
-            # Cài AWS CLI nếu chưa có
-            if ! command -v aws &> /dev/null
-            then
-              echo "🔧 Installing AWS CLI..."
-              sudo yum update -y
-              sudo yum install -y awscli wget unzip
-            fi
+            echo "🔧 Installing dependencies..."
+            sudo yum update -y
+            sudo yum install -y awscli wget unzip
 
-            # Di chuyển đến thư mục home
             cd /home/$USER
 
             echo "▶️ Running dataset download script..."
             bash download_dataset.sh
 
-            echo "⬆️ Uploading to S3..."
+            echo "⬆️ Uploading to S3 in region: $AWS_REGION ..."
             aws s3 sync ./entities s3://$S3_BUCKET/entities --region $AWS_REGION
             aws s3 sync ./relations s3://$S3_BUCKET/relations --region $AWS_REGION
             aws s3 sync ./prerequisites s3://$S3_BUCKET/prerequisites --region $AWS_REGION
 
             echo "✅ Upload completed successfully."
+            exit
           EOF
