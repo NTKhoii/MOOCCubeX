@@ -1,7 +1,7 @@
 name: Upload dataset to S3 via EC2
 
 on:
-  workflow_dispatch:  # có thể chạy thủ công
+  workflow_dispatch:  # Cho phép chạy thủ công trong tab Actions
   push:
     branches: [ main ]
 
@@ -10,31 +10,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Clone repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Tạo file PEM từ secret
+      # 2️⃣ Tạo file PEM từ secret (đã mã hóa trong GitHub Secrets)
       - name: Create PEM file
         run: |
           echo "${{ secrets.EC2_SSH_KEY }}" > ec2-key.pem
           chmod 600 ec2-key.pem
 
-      # Khai báo biến môi trường để dễ dùng
+      # 3️⃣ Khai báo biến môi trường (chứa thông tin EC2 và AWS)
       - name: Set environment variables
         run: |
           echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
           echo "S3_BUCKET=${{ secrets.S3_BUCKET }}" >> $GITHUB_ENV
           echo "EC2_USER=ec2-user" >> $GITHUB_ENV
-          echo "EC2_HOST=ec2-13-239-241-158.ap-southeast-2.compute.amazonaws.com" >> $GITHUB_ENV
-        # ⚠️ Thay <EC2_PUBLIC_DNS> bằng DNS thật, ví dụ:
-        # ec2-13-214-101-45.ap-southeast-1.compute.amazonaws.com
+          echo "EC2_HOST=${{ secrets.EC2_HOST }}" >> $GITHUB_ENV
 
-      # Upload script từ repo lên EC2
+      # 4️⃣ Upload script từ repo lên EC2 (đặt tại thư mục /home/ec2-user/)
       - name: Copy dataset script to EC2
         run: |
           scp -o StrictHostKeyChecking=no -i ./ec2-key.pem ./scripts/download_dataset.sh $EC2_USER@$EC2_HOST:/home/$EC2_USER/
 
-      # SSH vào EC2, cài AWS CLI và chạy script upload lên S3
+      # 5️⃣ SSH vào EC2, chạy script và upload dữ liệu lên S3
       - name: Run script on EC2 and upload to S3
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -43,23 +42,20 @@ jobs:
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ec2-key.pem $EC2_USER@$EC2_HOST << 'EOF'
-            set -e  # Dừng nếu có lỗi
+            set -e  # Dừng ngay nếu có lỗi
 
-            # Cài đặt AWS CLI (Amazon Linux đã có sẵn, nhưng chắc chắn lại)
+            echo "🔹 Updating system and installing dependencies..."
             sudo yum update -y
             sudo yum install -y awscli wget unzip
 
-            # Chuyển đến thư mục home
-            cd /home/$USER
-
-            # Chạy script tải dataset
+            cd /home/ec2-user
+            echo "🔹 Running dataset download script..."
             bash download_dataset.sh
 
-            # Giả sử script tải dữ liệu vào các thư mục ./entities, ./relations, ./prerequisites
-            # Upload toàn bộ dữ liệu lên S3
-            aws s3 sync ./entities s3://$S3_BUCKET/entities
-            aws s3 sync ./relations s3://$S3_BUCKET/relations
-            aws s3 sync ./prerequisites s3://$S3_BUCKET/prerequisites
+            echo "🔹 Uploading dataset to S3 bucket: $S3_BUCKET ..."
+            aws s3 sync ./entities s3://$S3_BUCKET/entities --region $AWS_REGION
+            aws s3 sync ./relations s3://$S3_BUCKET/relations --region $AWS_REGION
+            aws s3 sync ./prerequisites s3://$S3_BUCKET/prerequisites --region $AWS_REGION
 
             echo "✅ Upload completed successfully."
           EOF
