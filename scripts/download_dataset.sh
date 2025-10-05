@@ -15,13 +15,14 @@ mkdir -p entities relations prerequisites
 FILES="entities/reply.json entities/video.json entities/comment.json entities/course.json entities/other.json entities/paper.json entities/problem.json entities/school.json entities/teacher.json entities/user.json entities/concept.json relations/course-school.txt relations/course-teacher.txt relations/user-comment.txt relations/video_id-ccid.txt relations/comment-reply.txt relations/concept-other.txt relations/course-comment.txt relations/concept-video.txt relations/exercise-problem.txt relations/user-reply.txt relations/concept-comment.txt relations/concept-paper.txt relations/concept-problem.txt relations/concept-reply.json relations/course-field.json relations/reply-reply.txt relations/user-problem.json relations/user-video.json relations/user-xiaomu.json prerequisites/psy.json prerequisites/cs.json prerequisites/math.json"
 
 echo "Starting parallel download..."
-echo "$FILES" | tr ' ' '\n' | xargs -n 1 -P 4 -I {} bash -c '
+echo "$FILES" | tr ' ' '\n' | xargs -P 4 -I {} bash -c '
   filename="{}"
   dir=$(dirname "${filename}")
   mkdir -p "$dir"
   echo "Downloading ${filename} ..."
-  if ! wget -q --tries=3 --timeout=10 "$BASE_URL/${filename}" -O "${filename}"; then
-    echo "Error: Failed to download ${filename}"
+  if ! wget --tries=3 --timeout=10 -S "$BASE_URL/${filename}" -O "${filename}" 2> "error_${filename}.log"; then
+    echo "Error: Failed to download ${filename}. See error_${filename}.log for details."
+    cat "error_${filename}.log"
     exit 1
   fi
 '
