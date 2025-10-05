@@ -11,10 +11,18 @@ for filename in $FILES; do
   echo "Downloading ${filename} ..."
   dir=$(dirname "${filename}")
   mkdir -p "$dir"
-  wget -q "$BASE_URL/${filename}" -O "${filename}"
+
+  for i in {1..3}; do
+    wget -q "$BASE_URL/${filename}" -O "${filename}" && break || {
+      echo "⚠️ Attempt $i failed for ${filename}"
+      sleep 2
+    }
+  done
+
+  [[ -f "${filename}" ]] || echo "⚠️ Skipping missing file ${filename}"
 done
 
-echo "All files downloaded. Starting upload to S3..."
+echo "✅ All files processed. Starting upload to S3..."
 aws s3 sync ./entities s3://$S3_BUCKET/entities || { echo "s3 sync entities failed"; exit 1; }
 aws s3 sync ./relations s3://$S3_BUCKET/relations || { echo "s3 sync relations failed"; exit 1; }
 aws s3 sync ./prerequisites s3://$S3_BUCKET/prerequisites || { echo "s3 sync prereq failed"; exit 1; }
@@ -23,4 +31,4 @@ aws s3 sync ./prerequisites s3://$S3_BUCKET/prerequisites || { echo "s3 sync pre
 echo "Upload finished at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > /tmp/upload_done.txt
 aws s3 cp /tmp/upload_done.txt s3://$S3_BUCKET/_upload_done || { echo "failed to put marker"; exit 1; }
 
-echo "Done."
+echo "✅ Done."
