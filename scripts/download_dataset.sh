@@ -23,12 +23,12 @@ for filename in $FILES; do
 done
 
 echo "✅ All files processed. Starting upload to S3..."
-aws s3 sync ./entities s3://$S3_BUCKET/entities || { echo "s3 sync entities failed"; exit 1; }
-aws s3 sync ./relations s3://$S3_BUCKET/relations || { echo "s3 sync relations failed"; exit 1; }
-aws s3 sync ./prerequisites s3://$S3_BUCKET/prerequisites || { echo "s3 sync prereq failed"; exit 1; }
+aws s3 sync ./entities s3://$S3_BUCKET/entities --region $AWS_REGION || { echo "❌ s3 sync entities failed"; exit 1; }
+aws s3 sync ./relations s3://$S3_BUCKET/relations --region $AWS_REGION || { echo "❌ s3 sync relations failed"; exit 1; }
+aws s3 sync ./prerequisites s3://$S3_BUCKET/prerequisites --region $AWS_REGION || { echo "❌ s3 sync prerequisites failed"; exit 1; }
 
 # tạo marker file báo hoàn tất
 echo "Upload finished at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > /tmp/upload_done.txt
-aws s3 cp /tmp/upload_done.txt s3://$S3_BUCKET/_upload_done || { echo "failed to put marker"; exit 1; }
+aws s3 cp /tmp/upload_done.txt s3://$S3_BUCKET/_upload_done --region $AWS_REGION || { echo "❌ failed to put marker"; exit 1; }
 
 echo "✅ Done."
