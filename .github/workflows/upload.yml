@@ -10,34 +10,68 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout source
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2️⃣ Tạo file PEM từ GitHub Secret
       - name: Create PEM file
         run: |
           echo "${{ secrets.EC2_SSH_KEY }}" > ec2-key.pem
           chmod 600 ec2-key.pem
 
+      # 3️⃣ Thiết lập biến môi trường
       - name: Set environment variables
         run: |
-          echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
-          echo "S3_BUCKET=${{ secrets.S3_BUCKET }}" >> $GITHUB_ENV
           echo "EC2_USER=ec2-user" >> $GITHUB_ENV
-          echo "EC2_HOST=${{ secrets.EC2_HOST }}" >> $GITHUB_ENV  # Store host in secrets
+          echo "EC2_HOST=ec2-13-239-241-158.ap-southeast-2.compute.amazonaws.com" >> $GITHUB_ENV
+          echo "S3_BUCKET=${{ secrets.S3_BUCKET }}" >> $GITHUB_ENV
+          echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
 
+      # 4️⃣ Copy script lên EC2
       - name: Copy dataset script to EC2
         run: |
-          scp -o StrictHostKeyChecking=no -i ./ec2-key.pem ./scripts/download_dataset.sh $EC2_USER@$EC2_HOST:/home/$EC2_USER/
+          echo "📤 Copying script to EC2..."
+          scp -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ec2-key.pem ./scripts/download_dataset.sh $EC2_USER@$EC2_HOST:/home/$EC2_USER/
+          echo "✅ Script copied successfully."
 
-      - name: Run script on EC2
+      # 5️⃣ SSH vào EC2 và chạy upload
+      - name: Run dataset upload on EC2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i ./ec2-key.pem $EC2_USER@$EC2_HOST << 'EOF'
-            set -e
+          echo "🚀 Connecting to EC2..."
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ec2-key.pem $EC2_USER@$EC2_HOST << 'EOF'
+            set -e  # Dừng nếu có lỗi
+            echo "✅ Connected to EC2 instance."
 
-            echo "🔹 Running dataset download script..."
-            export S3_BUCKET=$S3_BUCKET
-            export AWS_REGION=$AWS_REGION
-            bash /home/ec2-user/download_dataset.sh
+            # Xuất biến môi trường AWS để dùng trong script
+            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            export AWS_REGION=${AWS_REGION}
+            export S3_BUCKET=${S3_BUCKET}
 
-            echo "✅ Script execution completed."
+            # Cài AWS CLI nếu chưa có
+            if ! command -v aws &> /dev/null
+            then
+              echo "🔧 Installing AWS CLI..."
+              sudo yum update -y
+              sudo yum install -y awscli wget unzip
+            fi
+
+            # Di chuyển đến thư mục home
+            cd /home/$USER
+
+            echo "▶️ Running dataset download script..."
+            bash download_dataset.sh
+
+            echo "⬆️ Uploading to S3..."
+            aws s3 sync ./entities s3://$S3_BUCKET/entities --region $AWS_REGION
+            aws s3 sync ./relations s3://$S3_BUCKET/relations --region $AWS_REGION
+            aws s3 sync ./prerequisites s3://$S3_BUCKET/prerequisites --region $AWS_REGION
+
+            echo "✅ Upload completed successfully."
           EOF
