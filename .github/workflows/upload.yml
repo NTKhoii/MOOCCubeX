@@ -63,7 +63,7 @@ jobs:
             fi
 
             # Di chuyển đến thư mục home
-            cd /home/$USER
+            cd /home/ec2-user
 
             echo "▶️ Running dataset download script..."
             bash download_dataset.sh
