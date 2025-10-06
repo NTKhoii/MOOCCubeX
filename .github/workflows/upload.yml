@@ -44,7 +44,7 @@ jobs:
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
         run: |
           echo "🚀 Connecting to EC2..."
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ec2-key.pem $EC2_USER@$EC2_HOST << 'EOF'
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ec2-key.pem $EC2_USER@$EC2_HOST << EOF
             set -e  # Dừng nếu có lỗi
             echo "✅ Connected to EC2 instance."
 
