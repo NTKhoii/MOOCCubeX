@@ -53,9 +53,13 @@ jobs:
             export AWS_REGION=${AWS_REGION}
             export S3_BUCKET=${S3_BUCKET}
 
-            echo "🔧 Installing dependencies..."
-            sudo yum update -y
-            sudo yum install -y awscli wget unzip
+            # Cài AWS CLI nếu chưa có 
+            if ! command -v aws &> /dev/null 
+            then 
+              echo "🔧 Installing AWS CLI..." 
+              sudo yum update -y 
+              sudo yum install -y awscli wget unzip 
+            fi
 
             cd /home/$USER
 
